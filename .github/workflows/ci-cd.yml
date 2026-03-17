@@ -1,0 +1,286 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'apps/payment-api/**'
+      - 'docker/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'apps/payment-api/**'
+      - 'docker/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: nebulapay/payment-api
+  ECR_REPOSITORY: nebulapay/payment-api
+
+jobs:
+  # ===========================================
+  # Stage 1: Code Quality & Security
+  # ===========================================
+  lint-and-security:
+    name: 🔍 Lint & Security Scan
+    runs-on: self-hosted  # EC2 Self-Hosted Runner
+    timeout-minutes: 10
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/payment-api/package-lock.json
+
+      - name: 📦 Install dependencies
+        working-directory: apps/payment-api
+        run: npm ci
+
+      - name: ✨ Run linter
+        working-directory: apps/payment-api
+        run: npm run lint
+
+      - name: 🔒 Run security audit
+        working-directory: apps/payment-api
+        run: npm audit --audit-level=moderate || true
+
+      - name: 📊 Type check
+        working-directory: apps/payment-api
+        run: npm run typecheck
+
+  # ===========================================
+  # Stage 2: Automated Testing
+  # ===========================================
+  test:
+    name: 🧪 Run Tests
+    runs-on: self-hosted  # EC2 Self-Hosted Runner
+    timeout-minutes: 15
+    needs: lint-and-security
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/payment-api/package-lock.json
+
+      - name: 📦 Install dependencies
+        working-directory: apps/payment-api
+        run: npm ci
+
+      - name: 🧪 Run unit tests with coverage
+        working-directory: apps/payment-api
+        run: npm run test -- --coverage --ci
+
+      - name: 📈 Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: apps/payment-api/coverage/lcov.info
+          flags: payment-api
+          name: codecov-payment-api
+          fail_ci_if_error: false
+
+      - name: ✅ Confirm build success
+        run: |
+          echo "✅ BUILD SUCCESSFUL on EC2 Self-Hosted Runner"
+          echo "Runner: $(hostname)"
+          echo "Timestamp: $(date -u)"
+
+  # ===========================================
+  # Stage 3: Build & Push Container
+  # ===========================================
+  build-and-push:
+    name: 🐳 Build & Push Container
+    runs-on: self-hosted  # EC2 Self-Hosted Runner
+    timeout-minutes: 20
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔐 Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️ Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+            type=raw,value=${{ github.sha }}
+
+      - name: 🛠️ Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🐳 Build and push container
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: ✅ Container build confirmation
+        run: |
+          echo "🎉 CONTAINER BUILD SUCCESSFUL"
+          echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          echo "Tags: ${{ steps.meta.outputs.tags }}"
+          echo "EC2 Runner: $(hostname)"
+
+  # ===========================================
+  # Stage 4: Infrastructure Validation
+  # ===========================================
+  validate-infrastructure:
+    name: 🏗️ Validate IaC
+    runs-on: self-hosted  # EC2 Self-Hosted Runner
+    timeout-minutes: 10
+    needs: test
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+
+      - name: 📋 Terraform Format Check
+        working-directory: infra/terraform
+        run: terraform fmt -check -recursive || true
+
+      - name: 🔍 Terraform Validate
+        working-directory: infra/terraform
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: 🛡️ Checkov Security Scan
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: infra/terraform
+          framework: terraform
+          soft_fail: true
+
+  # ===========================================
+  # Stage 5: Deploy to Staging (GitOps)
+  # ===========================================
+  deploy-staging:
+    name: 🚀 Deploy to Staging
+    runs-on: self-hosted  # EC2 Self-Hosted Runner
+    timeout-minutes: 30
+    needs: [build-and-push, validate-infrastructure]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: staging
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: 🔐 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: 🔄 Update Kubernetes manifests
+        working-directory: infra/kubernetes
+        run: |
+          # Update image tag in deployment
+          sed -i "s|image:.*payment-api.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}|g" staging/deployment.yaml
+
+      - name: 📦 Apply Kubernetes manifests
+        run: |
+          kubectl apply -f infra/kubernetes/staging/
+          kubectl rollout status deployment/nebulapay-payment-api -n staging --timeout=300s
+
+      - name: 🏥 Run smoke tests
+        run: |
+          # Wait for deployment
+          sleep 30
+          # Health check
+          curl -f https://staging-api.nebulapay.com/health/live || exit 1
+
+      - name: ✅ Deployment confirmation
+        run: |
+          echo "🎊 DEPLOYMENT TO STAGING SUCCESSFUL"
+          echo "Environment: staging"
+          echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          echo "EC2 Runner: $(hostname)"
+
+  # ===========================================
+  # Stage 6: Production Deployment (Manual Approval)
+  # ===========================================
+  deploy-production:
+    name: 🚀 Deploy to Production
+    runs-on: self-hosted  # EC2 Self-Hosted Runner
+    timeout-minutes: 30
+    needs: deploy-staging
+    if: github.event_name == 'workflow_dispatch'
+    environment: production
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: 🔐 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: 📦 Apply Kubernetes manifests
+        run: |
+          kubectl apply -f infra/kubernetes/production/
+          kubectl rollout status deployment/nebulapay-payment-api -n production --timeout=600s
+
+      - name: 🏥 Run production smoke tests
+        run: |
+          curl -f https://api.nebulapay.com/health/live || exit 1
+
+      - name: ✅ Production deployment confirmation
+        run: |
+          echo "🎉 PRODUCTION DEPLOYMENT SUCCESSFUL"
+          echo "Environment: production"
+          echo "EC2 Runner: $(hostname)"
