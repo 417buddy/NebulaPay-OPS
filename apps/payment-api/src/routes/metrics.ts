@@ -32,7 +32,7 @@ router.use((req, res, next) => {
   res.on('finish', () => {
     const duration = (Date.now() - start) / 1000;
     httpRequestDuration
-      .labels(req.method, req.route?.path || req.path, res.statusCode)
+      .labels(req.method, req.route?.path || req.path, res.statusCode.toString())
       .observe(duration);
   });
   

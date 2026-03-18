@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { z } from 'zod';
 import { PaymentService } from '../services/paymentService';
@@ -16,15 +16,6 @@ const paymentSchema = z.object({
   description: z.string().optional(),
   metadata: z.record(z.unknown()).optional(),
 });
-
-interface PaymentRequest {
-  amount: number;
-  currency: 'USD' | 'EUR' | 'GBP' | 'NGN';
-  payerId: string;
-  payeeId: string;
-  description?: string;
-  metadata?: Record<string, unknown>;
-}
 
 // POST /api/v1/payments - Create payment
 router.post('/', async (req: Request, res: Response) => {
@@ -95,18 +86,22 @@ router.get('/', async (_req: Request, res: Response) => {
 });
 
 // POST /api/v1/payments/:id/refund - Refund payment
-router.post('/:id/refund', async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const { amount, reason } = req.body;
-  
-  const refund = await paymentService.refundPayment(id, { amount, reason });
-  
-  logger.info('Payment refunded', { paymentId: id, refundId: refund.id });
-  
-  res.status(StatusCodes.CREATED).json({
-    success: true,
-    data: refund,
-  });
+router.post('/:id/refund', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const { amount, reason } = req.body;
+    
+    const refund = await paymentService.refundPayment(id, { amount, reason });
+    
+    logger.info('Payment refunded', { paymentId: id, refundId: refund.id });
+    
+    res.status(StatusCodes.CREATED).json({
+      success: true,
+      data: refund,
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 export const paymentRouter = router;

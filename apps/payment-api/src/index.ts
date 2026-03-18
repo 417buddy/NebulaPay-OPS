@@ -62,11 +62,14 @@ app.use(errorHandler);
 
 const PORT = config.port;
 
-app.listen(PORT, () => {
-  logger.info(`🚀 NebulaPay API server running on port ${PORT}`, {
-    environment: config.environment,
-    version: config.appVersion,
+// Only start server if not in test environment
+if (config.environment !== 'test') {
+  app.listen(PORT, () => {
+    logger.info(`🚀 NebulaPay API server running on port ${PORT}`, {
+      environment: config.environment,
+      version: config.appVersion,
+    });
   });
-});
+}
 
 export default app;
