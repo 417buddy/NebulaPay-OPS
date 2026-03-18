@@ -125,6 +125,9 @@ clean: ## Clean build artifacts
 deploy-staging: ## Deploy to staging environment
 	@echo "$(BLUE)Deploying to staging...$(NC)"
 	@kubectl cluster-info > /dev/null 2>&1 || (echo "$(RED)Error: Not connected to Kubernetes cluster$(NC)" && echo "Run 'aws eks update-kubeconfig --name $(CLUSTER_NAME)' first" && exit 1)
+	@echo "$(YELLOW)Creating namespace...$(NC)"
+	kubectl apply -f infra/kubernetes/base/
+	@echo "$(YELLOW)Applying staging manifests...$(NC)"
 	kubectl apply -f $(KUBE_STAGING)/
 	kubectl rollout status deployment/$(APP_NAME) -n staging --timeout=300s
 	@echo "$(GREEN)Staging deployment completed!$(NC)"
@@ -132,7 +135,9 @@ deploy-staging: ## Deploy to staging environment
 deploy-production: ## Deploy to production environment
 	@echo "$(YELLOW)Deploying to production...$(NC)"
 	@kubectl cluster-info > /dev/null 2>&1 || (echo "$(RED)Error: Not connected to Kubernetes cluster$(NC)" && echo "Run 'aws eks update-kubeconfig --name $(CLUSTER_NAME)' first" && exit 1)
-	@read -p "Are you sure you want to deploy to production? [y/N] " confirm && [ "$confirm" = "y" ]
+	@echo "$(YELLOW)Creating namespace...$(NC)"
+	kubectl apply -f infra/kubernetes/base/
+	@echo "$(YELLOW)Applying production manifests...$(NC)"
 	kubectl apply -f $(KUBE_PRODUCTION)/
 	kubectl rollout status deployment/$(APP_NAME) -n production --timeout=600s
 	@echo "$(GREEN)Production deployment completed!$(NC)"
