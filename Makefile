@@ -13,6 +13,8 @@ IMAGE_NAME := ghcr.io/nebulapay/$(APP_NAME)
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 KUBE_STAGING := infra/kubernetes/staging
 KUBE_PRODUCTION := infra/kubernetes/production
+CLUSTER_NAME := nebulapay-eks
+AWS_REGION := us-east-1
 
 # Colors for output
 BLUE := \033[0;34m
@@ -122,13 +124,15 @@ clean: ## Clean build artifacts
 # =============================================================================
 deploy-staging: ## Deploy to staging environment
 	@echo "$(BLUE)Deploying to staging...$(NC)"
+	@kubectl cluster-info > /dev/null 2>&1 || (echo "$(RED)Error: Not connected to Kubernetes cluster$(NC)" && echo "Run 'aws eks update-kubeconfig --name $(CLUSTER_NAME)' first" && exit 1)
 	kubectl apply -f $(KUBE_STAGING)/
 	kubectl rollout status deployment/$(APP_NAME) -n staging --timeout=300s
 	@echo "$(GREEN)Staging deployment completed!$(NC)"
 
 deploy-production: ## Deploy to production environment
 	@echo "$(YELLOW)Deploying to production...$(NC)"
-	@read -p "Are you sure you want to deploy to production? [y/N] " confirm && [ "$$confirm" = "y" ]
+	@kubectl cluster-info > /dev/null 2>&1 || (echo "$(RED)Error: Not connected to Kubernetes cluster$(NC)" && echo "Run 'aws eks update-kubeconfig --name $(CLUSTER_NAME)' first" && exit 1)
+	@read -p "Are you sure you want to deploy to production? [y/N] " confirm && [ "$confirm" = "y" ]
 	kubectl apply -f $(KUBE_PRODUCTION)/
 	kubectl rollout status deployment/$(APP_NAME) -n production --timeout=600s
 	@echo "$(GREEN)Production deployment completed!$(NC)"
@@ -158,9 +162,22 @@ infra-apply: ## Apply Terraform changes
 
 infra-destroy: ## Destroy Terraform infrastructure
 	@echo "$(RED)WARNING: This will destroy infrastructure!$(NC)"
-	@read -p "Are you sure? [y/N] " confirm && [ "$$confirm" = "y" ]
+	@read -p "Are you sure? [y/N] " confirm && [ "$confirm" = "y" ]
 	cd infra/terraform && terraform destroy
 	@echo "$(GREEN)Infrastructure destroyed!$(NC)"
+
+kube-config: ## Configure kubectl to connect to EKS cluster
+	@echo "$(BLUE)Configuring kubectl for EKS cluster...$(NC)"
+	aws eks update-kubeconfig --name $(CLUSTER_NAME) --region $(AWS_REGION)
+	@echo "$(GREEN)kubectl configured successfully!$(NC)"
+	@kubectl cluster-info
+
+kube-context: ## Show current kubectl context
+	@echo "$(BLUE)Current kubectl context:$(NC)"
+	@kubectl config current-context
+	@echo ""
+	@echo "$(BLUE)Cluster info:$(NC)"
+	@kubectl cluster-info
 
 # =============================================================================
 # EC2 Runner Setup (Documentation)
