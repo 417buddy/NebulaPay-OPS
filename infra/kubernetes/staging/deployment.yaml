@@ -29,7 +29,7 @@ spec:
         fsGroup: 1001
       containers:
         - name: payment-api
-          image: ghcr.io/nebulapay/payment-api:latest
+          image: 564268554451.dkr.ecr.us-east-1.amazonaws.com/nebulapay/payment-api:latest
           imagePullPolicy: Always
           ports:
             - name: http
