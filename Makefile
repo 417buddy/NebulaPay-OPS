@@ -67,13 +67,22 @@ build: ## Build the application
 build-image: ## Build Docker image
 	@echo "$(BLUE)Building Docker image...$(NC)"
 	docker build -f $(DOCKERFILE) -t $(IMAGE_NAME):$(VERSION) .
+	docker tag $(IMAGE_NAME):$(VERSION) $(IMAGE_NAME):latest
 	@echo "$(GREEN)Image built: $(IMAGE_NAME):$(VERSION)$(NC)"
 
 build-image-push: ## Build and push Docker image
 	@echo "$(BLUE)Building and pushing Docker image...$(NC)"
 	docker build -f $(DOCKERFILE) -t $(IMAGE_NAME):$(VERSION) .
+	docker tag $(IMAGE_NAME):$(VERSION) $(IMAGE_NAME):latest
 	docker push $(IMAGE_NAME):$(VERSION)
+	docker push $(IMAGE_NAME):latest
 	@echo "$(GREEN)Image pushed: $(IMAGE_NAME):$(VERSION)$(NC)"
+
+build-and-deploy: ## Build image, push, and deploy to staging
+	@echo "$(BLUE)Building and deploying to staging...$(NC)"
+	$(MAKE) build-image-push
+	$(MAKE) deploy-staging
+	@echo "$(GREEN)Build and deploy completed!$(NC)"
 
 # =============================================================================
 # Testing
