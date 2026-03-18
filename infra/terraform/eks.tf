@@ -98,6 +98,8 @@ resource "aws_eks_node_group" "main" {
 
   instance_types = each.value.instance_types
   capacity_type  = each.value.capacity_type
+  ami_type       = "AL2_x86_64"
+  disk_size      = 50
 
   scaling_config {
     desired_size = each.value.scaling_config.desired_size
@@ -118,6 +120,10 @@ resource "aws_eks_node_group" "main" {
     aws_iam_role_policy_attachment.eks_cni_policy,
     aws_iam_role_policy_attachment.eks_container_registry,
   ]
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # Security Group for EKS Cluster
@@ -162,4 +168,45 @@ resource "aws_iam_openid_connect_provider" "eks" {
   tags = {
     Name = "${var.cluster_name}-oidc"
   }
+}
+
+# EKS Managed Add-ons
+resource "aws_eks_addon" "vpc_cni" {
+  cluster_name = aws_eks_cluster.main.name
+  addon_name   = "vpc-cni"
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  tags = {
+    Name = "${var.cluster_name}-vpc-cni"
+  }
+}
+
+resource "aws_eks_addon" "kube_proxy" {
+  cluster_name = aws_eks_cluster.main.name
+  addon_name   = "kube-proxy"
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  tags = {
+    Name = "${var.cluster_name}-kube-proxy"
+  }
+}
+
+resource "aws_eks_addon" "coredns" {
+  cluster_name = aws_eks_cluster.main.name
+  addon_name   = "coredns"
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  tags = {
+    Name = "${var.cluster_name}-coredns"
+  }
+
+  depends_on = [
+    aws_eks_node_group.main
+  ]
 }

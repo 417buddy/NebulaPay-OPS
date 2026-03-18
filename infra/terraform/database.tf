@@ -104,6 +104,7 @@ resource "aws_elasticache_subnet_group" "main" {
 resource "aws_elasticache_cluster" "redis" {
   cluster_id           = "${var.cluster_name}-redis"
   engine               = "redis"
+  engine_version       = "7.1"
   node_type            = "cache.t3.medium"
   num_cache_nodes      = var.environment == "production" ? 3 : 1
   parameter_group_name = "redis7"
