@@ -32,8 +32,8 @@ echo ""
 
 # Step 2: Build Docker image
 echo -e "${YELLOW}Step 2: Building Docker image...${NC}"
-cd apps/payment-api
-docker build -f ../../docker/Dockerfile -t ${ECR_REPO}:${VERSION} .
+cd /Users/owolabiyusuff/nebulapay-ops
+docker build -f docker/Dockerfile -t ${ECR_REPO}:${VERSION} .
 docker tag ${ECR_REPO}:${VERSION} ${ECR_REPO}:latest
 echo -e "${GREEN}✓ Image built: ${ECR_REPO}:${VERSION}${NC}"
 echo ""
@@ -47,7 +47,7 @@ echo ""
 
 # Step 4: Update Kubernetes deployment
 echo -e "${YELLOW}Step 4: Updating Kubernetes deployment...${NC}"
-cd ../../infra/kubernetes/$NAMESPACE
+cd /Users/owolabiyusuff/nebulapay-ops/infra/kubernetes/$NAMESPACE
 sed -i.bak "s|image: .*payment-api.*|image: ${ECR_REPO}:${VERSION}|g" deployment.yaml
 rm -f deployment.yaml.bak
 echo -e "${GREEN}✓ Deployment updated${NC}"
