@@ -59,17 +59,40 @@ jobs:
       # ===========================================
       # BUILD & PUSH (main branch only)
       # ===========================================
+      - name: 🔐 Debug AWS Credentials
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "=== CHECKING AWS CREDENTIALS ==="
+          echo "AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-(not set)}"
+          echo "AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-(not set)}"
+          echo "AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-(not set)}"
+          echo "AWS_REGION: ${AWS_REGION:-(not set)}"
+          echo ""
+          echo "IAM Identity:"
+          aws sts get-caller-identity 2>&1 || echo "Failed to get identity"
+          echo ""
+          echo "ECR Login Test:"
+          aws ecr get-login-password --region us-east-1 2>&1 || echo "ECR login failed"
+
       - name: 🔐 Get ECR Password
         if: github.ref == 'refs/heads/main'
         id: ecr
         run: |
-          echo "Getting ECR password using instance credentials..."
+          echo "Getting ECR password..."
+          # Try with explicit region
+          export AWS_REGION=us-east-1
           ECR_PASSWORD=$(aws ecr get-login-password --region us-east-1 2>&1)
-          if [ $? -eq 0 ]; then
+          EXIT_CODE=$?
+          
+          if [ $EXIT_CODE -eq 0 ] && [ -n "$ECR_PASSWORD" ]; then
             echo "ECR_PASSWORD=${ECR_PASSWORD}" >> $GITHUB_OUTPUT
             echo "✅ Got ECR password"
           else
-            echo "❌ Failed to get ECR password: ${ECR_PASSWORD}"
+            echo "❌ Failed to get ECR password"
+            echo "Error: ${ECR_PASSWORD}"
+            echo ""
+            echo "Checking credentials..."
+            aws sts get-caller-identity 2>&1 || true
             exit 1
           fi
 
