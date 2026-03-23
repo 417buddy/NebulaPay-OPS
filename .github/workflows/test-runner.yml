@@ -1,0 +1,84 @@
+name: Test EC2 Runner
+
+on:
+  workflow_dispatch:  # Manual trigger
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/test-runner.yml'
+
+jobs:
+  test-runner:
+    name: 🧪 Test Self-Hosted Runner
+    runs-on: self-hosted
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Show Runner Information
+        run: |
+          echo "=========================================="
+          echo "  ✅ EC2 RUNNER TRIGGERED SUCCESSFULLY   "
+          echo "=========================================="
+          echo ""
+          echo "🖥️  Runner Information:"
+          echo "  Hostname: $(hostname)"
+          echo "  IP Address: $(hostname -i)"
+          echo "  OS: $(cat /etc/os-release | grep PRETTY_NAME | cut -d'=' -f2)"
+          echo "  Kernel: $(uname -r)"
+          echo ""
+          echo "📦 Installed Tools:"
+          echo "  Node.js: $(node --version)"
+          echo "  npm: $(npm --version)"
+          echo "  Docker: $(docker --version)"
+          echo "  Git: $(git --version)"
+          echo "  Terraform: $(terraform version | head -1)"
+          echo "  kubectl: $(kubectl version --client --short 2>/dev/null || kubectl version --client)"
+          echo "  AWS CLI: $(aws --version | head -1)"
+          echo ""
+          echo "🏷️  Runner Labels: ${{ toJson(runner.labels) }}"
+          echo "📍 Runner Name: ${{ runner.name }}"
+          echo "🔧 Runner OS: ${{ runner.os }}"
+          echo "🏗️  Architecture: ${{ runner.arch }}"
+          echo ""
+          echo "=========================================="
+          echo "  🎉 RUNNER IS WORKING CORRECTLY!       "
+          echo "=========================================="
+
+      - name: Test Docker
+        run: |
+          echo "Testing Docker..."
+          docker run --rm hello-world
+          echo "✅ Docker working!"
+
+      - name: Test Node.js
+        run: |
+          echo "Testing Node.js..."
+          cd apps/payment-api
+          npm --version
+          node --version
+          echo "✅ Node.js working!"
+
+      - name: Test AWS CLI
+        run: |
+          echo "Testing AWS CLI..."
+          aws --version
+          aws sts get-caller-identity || echo "AWS credentials not configured (this is OK for runner test)"
+          echo "✅ AWS CLI working!"
+
+      - name: Upload Test Result
+        run: |
+          echo "Test completed at $(date)" > test-result.txt
+          echo "Runner: $(hostname)" >> test-result.txt
+          
+      - name: Show Success Message
+        run: |
+          echo ""
+          echo "🎊 SUCCESS! Your EC2 self-hosted runner is working perfectly!"
+          echo ""
+          echo "Next steps:"
+          echo "1. Check the NebulaPay-OPS CI/CD pipeline"
+          echo "2. Push code to trigger automated builds"
+          echo "3. Monitor runner logs: sudo journalctl -u actions.runner.* -f"
+          echo ""

@@ -3,15 +3,9 @@ name: CI/CD Pipeline
 on:
   push:
     branches: [main, develop]
-    paths:
-      - 'apps/payment-api/**'
-      - 'docker/**'
-      - '.github/workflows/**'
   pull_request:
     branches: [main, develop]
-    paths:
-      - 'apps/payment-api/**'
-      - 'docker/**'
+  workflow_dispatch:  # Allow manual trigger
 
 env:
   REGISTRY: ghcr.io
