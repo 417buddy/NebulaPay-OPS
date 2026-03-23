@@ -22,49 +22,54 @@ jobs:
     timeout-minutes: 10
     continue-on-error: true
     
+    defaults:
+      run:
+        working-directory: apps/payment-api
+    
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
-
-      - name: 🟢 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: apps/payment-api/package-lock.json
 
       - name: 📁 Debug: Show directory structure
         run: |
           echo "Current directory: $(pwd)"
           echo "Files in root:"
           ls -la
+          echo ""
           echo "Files in apps/payment-api:"
           ls -la apps/payment-api/ || echo "Directory not found"
+          echo ""
+          echo "Checking for package-lock.json:"
+          ls -la apps/payment-api/package*.json || echo "No package files found"
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
 
       - name: 📦 Install dependencies
-        working-directory: apps/payment-api
         run: |
           echo "Installing dependencies..."
           if [ -f "package-lock.json" ]; then
-            npm ci || npm install
+            echo "Found package-lock.json, using npm ci"
+            npm ci || { echo "npm ci failed, trying npm install"; npm install; }
           else
+            echo "No package-lock.json found, using npm install"
             npm install
           fi
 
       - name: ✨ Run linter
-        working-directory: apps/payment-api
         run: |
           echo "Running linter..."
           npm run lint 2>&1 || echo "::warning::Lint check completed with warnings"
 
       - name: 🔒 Run security audit
-        working-directory: apps/payment-api
         run: |
           echo "Running security audit..."
           npm audit --audit-level=high 2>&1 || echo "::warning::Audit completed with warnings"
 
       - name: 📊 Type check
-        working-directory: apps/payment-api
         run: |
           echo "Running type check..."
           npm run typecheck 2>&1 || echo "::warning::Type check completed with warnings"
@@ -83,25 +88,28 @@ jobs:
     timeout-minutes: 15
     needs: lint-and-security
     continue-on-error: true
+    
+    defaults:
+      run:
+        working-directory: apps/payment-api
 
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
+
+      - name: 📁 Debug: Show directory
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Files in apps/payment-api:"
+          ls -la
 
       - name: 🟢 Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: apps/payment-api/package-lock.json
-
-      - name: 📁 Debug: Show directory
-        run: |
-          echo "Current directory: $(pwd)"
-          ls -la apps/payment-api/ || echo "Directory check failed"
 
       - name: 📦 Install dependencies
-        working-directory: apps/payment-api
         run: |
           echo "Installing dependencies..."
           if [ -f "package-lock.json" ]; then
@@ -111,7 +119,6 @@ jobs:
           fi
 
       - name: 🧪 Run unit tests
-        working-directory: apps/payment-api
         run: |
           echo "Running tests..."
           npm test -- --ci --testPathPattern=health 2>&1 || echo "::warning::Tests completed with failures"
