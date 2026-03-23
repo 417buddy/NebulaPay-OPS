@@ -30,13 +30,21 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 🔧 Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: 🔧 Fix Docker permissions
+        run: |
+          echo "=== FIXING DOCKER PERMISSIONS ==="
+          # Add current user to docker group
+          sudo usermod -aG docker $USER
+          # Try to start docker if not running
+          sudo systemctl start docker || true
+          # Verify docker works
+          docker ps || echo "Docker check"
 
-      - name: 🔧 Setup kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: 'v1.29.0'
+      - name: 🔧 Setup Docker (alternative)
+        run: |
+          echo "Setting up Docker without buildx..."
+          docker --version
+          docker info
 
       # ===========================================
       # INSTALL & LINT
@@ -75,17 +83,38 @@ jobs:
           username: AWS
           password: ${{ secrets.AWS_ECR_PASSWORD }}
 
-      - name: 🐳 Build and push container
+      - name: 🐳 Build Docker image (without buildx)
         if: github.ref == 'refs/heads/main'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: docker/Dockerfile
-          push: true
-          tags: |
-            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
-            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
-          platforms: linux/amd64
+        run: |
+          echo "=== BUILDING DOCKER IMAGE ==="
+          IMAGE_TAG="${{ github.sha }}"
+          FULL_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
+          
+          # Build without buildx (simpler, more reliable)
+          docker build -t ${FULL_IMAGE} -f docker/Dockerfile .
+          
+          echo "✅ Build complete"
+          echo "Image: ${FULL_IMAGE}"
+
+      - name: 🚀 Push to ECR
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "=== PUSHING TO ECR ==="
+          IMAGE_TAG="${{ github.sha }}"
+          FULL_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
+          
+          # Push SHA tag
+          docker push ${FULL_IMAGE}
+          
+          # Push latest tag
+          LATEST_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest"
+          docker tag ${FULL_IMAGE} ${LATEST_IMAGE}
+          docker push ${LATEST_IMAGE}
+          
+          echo "✅ Push complete"
+          echo "Images:"
+          echo "  - ${FULL_IMAGE}"
+          echo "  - ${LATEST_IMAGE}"
 
       - name: ✅ Build complete
         if: github.ref == 'refs/heads/main'
