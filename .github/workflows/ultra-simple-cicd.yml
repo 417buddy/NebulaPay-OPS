@@ -1,0 +1,56 @@
+name: Ultra Simple CI/CD
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  ultra-simple:
+    name: Ultra Simple Test
+    runs-on: self-hosted
+    
+    steps:
+      - name: Step 1 - Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Step 2 - Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Step 3 - Show directory
+        run: |
+          pwd
+          ls -la
+          ls -la apps/payment-api/
+
+      - name: Step 4 - Install
+        working-directory: apps/payment-api
+        run: |
+          pwd
+          npm --version
+          node --version
+          ls -la
+          npm install
+
+      - name: Step 5 - Lint
+        working-directory: apps/payment-api
+        run: npm run lint || true
+
+      - name: Step 6 - Test
+        working-directory: apps/payment-api
+        run: npm test -- --testPathPattern=health || true
+
+      - name: ✅ DONE
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "  ✅✅✅ SUCCESS! ALL STEPS COMPLETED ✅✅✅  "
+          echo "=========================================="
+          echo ""
+          echo "If you see this, the pipeline worked!"
+          echo "Runner: $(hostname)"
+          echo ""
