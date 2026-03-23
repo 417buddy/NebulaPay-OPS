@@ -59,22 +59,19 @@ jobs:
       # ===========================================
       # BUILD & PUSH (main branch only)
       # ===========================================
-      - name: 🔐 Configure AWS Credentials
-        if: github.ref == 'refs/heads/main'
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: us-east-1
-          role-to-assume: arn:aws:iam::564268554451:role/GitHubRunnerRole
-          role-session-name: GitHubActionsECR
-
       - name: 🔐 Get ECR Password
         if: github.ref == 'refs/heads/main'
         id: ecr
         run: |
-          echo "Getting ECR password..."
-          ECR_PASSWORD=$(aws ecr get-login-password --region us-east-1)
-          echo "ECR_PASSWORD=${ECR_PASSWORD}" >> $GITHUB_OUTPUT
-          echo "✅ Got ECR password"
+          echo "Getting ECR password using instance credentials..."
+          ECR_PASSWORD=$(aws ecr get-login-password --region us-east-1 2>&1)
+          if [ $? -eq 0 ]; then
+            echo "ECR_PASSWORD=${ECR_PASSWORD}" >> $GITHUB_OUTPUT
+            echo "✅ Got ECR password"
+          else
+            echo "❌ Failed to get ECR password: ${ECR_PASSWORD}"
+            exit 1
+          fi
 
       - name: 🔐 Login to ECR
         if: github.ref == 'refs/heads/main'
