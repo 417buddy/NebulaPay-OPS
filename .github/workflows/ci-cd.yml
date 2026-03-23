@@ -87,14 +87,41 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           echo "=== BUILDING DOCKER IMAGE ==="
+          echo "Current directory: $(pwd)"
+          echo "Files in current directory:"
+          ls -la
+          echo ""
+          echo "Checking Dockerfile location:"
+          ls -la docker/ 2>&1 || echo "docker/ directory not found"
+          ls -la Dockerfile 2>&1 || echo "Dockerfile not found in root"
+          echo ""
           IMAGE_TAG="${{ github.sha }}"
           FULL_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
           
+          echo "Building image: ${FULL_IMAGE}"
+          echo "Using Dockerfile: docker/Dockerfile"
+          echo ""
+          
+          # Check if Dockerfile exists
+          if [ -f "docker/Dockerfile" ]; then
+            echo "✅ Dockerfile found"
+          else
+            echo "❌ Dockerfile NOT FOUND at docker/Dockerfile"
+            find . -name "Dockerfile" -type f 2>/dev/null
+            exit 1
+          fi
+          
           # Build without buildx (simpler, more reliable)
           docker build -t ${FULL_IMAGE} -f docker/Dockerfile .
+          BUILD_EXIT=$?
           
-          echo "✅ Build complete"
-          echo "Image: ${FULL_IMAGE}"
+          if [ $BUILD_EXIT -eq 0 ]; then
+            echo "✅ Build complete"
+            echo "Image: ${FULL_IMAGE}"
+          else
+            echo "❌ Build failed with exit code: $BUILD_EXIT"
+            exit $BUILD_EXIT
+          fi
 
       - name: 🚀 Push to ECR
         if: github.ref == 'refs/heads/main'
