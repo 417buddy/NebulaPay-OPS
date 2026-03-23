@@ -1,0 +1,115 @@
+name: DEBUG - Full Pipeline Diagnostics
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    name: 🔍 Full Diagnostics
+    runs-on: self-hosted
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 📁 Show everything
+        run: |
+          echo "=== WORKSPACE ==="
+          echo "PWD: $PWD"
+          echo "User: $(whoami)"
+          echo "Groups: $(groups)"
+          echo ""
+          echo "=== ROOT FILES ==="
+          ls -la
+          echo ""
+          echo "=== APPS/PAYMENT-API ==="
+          ls -la apps/payment-api/
+          echo ""
+          echo "=== PACKAGE.JSON ==="
+          cat apps/payment-api/package.json | head -10
+          echo ""
+          echo "=== DOCKER DIRECTORY ==="
+          ls -la docker/
+          echo ""
+          echo "=== KUBERNETES DIRECTORY ==="
+          ls -la infra/kubernetes/
+          echo ""
+          echo "=== TERRAFORM DIRECTORY ==="
+          ls -la infra/terraform/
+
+      - name: 📦 Install
+        working-directory: apps/payment-api
+        run: |
+          echo "=== NPM INSTALL ==="
+          npm install 2>&1
+          echo "Exit code: $?"
+
+      - name: ✨ Lint
+        working-directory: apps/payment-api
+        run: |
+          echo "=== NPM RUN LINT ==="
+          npm run lint 2>&1
+          echo "Exit code: $?"
+
+      - name: 🧪 Test
+        working-directory: apps/payment-api
+        run: |
+          echo "=== NPM TEST ==="
+          npm test -- --testPathPattern=health 2>&1
+          echo "Exit code: $?"
+
+      - name: 🔐 Check ECR Secret
+        run: |
+          echo "=== CHECKING SECRETS ==="
+          if [ -n "${{ secrets.AWS_ECR_PASSWORD }}" ]; then
+            echo "✅ AWS_ECR_PASSWORD is set"
+            echo "Length: ${#AWS_ECR_PASSWORD}"
+          else
+            echo "❌ AWS_ECR_PASSWORD is NOT set or empty"
+          fi
+
+      - name: 🐳 Check Docker
+        run: |
+          echo "=== DOCKER CHECK ==="
+          docker --version
+          docker ps
+          docker info | head -20
+
+      - name: ☁️ Check AWS
+        run: |
+          echo "=== AWS CLI CHECK ==="
+          aws --version
+          aws sts get-caller-identity 2>&1 || echo "AWS not configured"
+
+      - name: ☸️ Check kubectl
+        run: |
+          echo "=== KUBECTL CHECK ==="
+          kubectl version --client 2>&1
+          kubectl config view 2>&1 || echo "kubectl not configured"
+
+      - name: 🏗️ Check Terraform
+        run: |
+          echo "=== TERRAFORM CHECK ==="
+          terraform --version
+          cd infra/terraform
+          terraform init -backend=false 2>&1 || echo "Terraform init failed"
+          terraform validate 2>&1 || echo "Terraform validate failed"
+
+      - name: ✅ SUMMARY
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "  DIAGNOSTIC COMPLETE                    "
+          echo "=========================================="
+          echo ""
+          echo "Check the logs above to see which step failed."
+          echo "Each section is clearly labeled with === headers."
+          echo ""
+          echo "Runner: $(hostname)"
+          echo "Time: $(date)"
+          echo ""
