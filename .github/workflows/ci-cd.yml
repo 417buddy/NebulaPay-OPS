@@ -75,6 +75,24 @@ jobs:
       # ===========================================
       # BUILD & PUSH (main branch only)
       # ===========================================
+      - name: 🔐 Check Docker access
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "=== CHECKING DOCKER ACCESS ==="
+          echo "Current user: $(whoami)"
+          echo "User groups: $(groups)"
+          echo ""
+          echo "Docker version:"
+          docker --version
+          echo ""
+          echo "Docker info (first 10 lines):"
+          docker info 2>&1 | head -10
+          echo ""
+          echo "Docker ps:"
+          docker ps
+          echo ""
+          echo "✅ Docker is accessible"
+
       - name: 🔐 Login to ECR
         if: github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
@@ -83,45 +101,22 @@ jobs:
           username: AWS
           password: ${{ secrets.AWS_ECR_PASSWORD }}
 
-      - name: 🐳 Build Docker image (without buildx)
+      - name: 🐳 Build Docker image
         if: github.ref == 'refs/heads/main'
         run: |
           echo "=== BUILDING DOCKER IMAGE ==="
-          echo "Current directory: $(pwd)"
-          echo "Files in current directory:"
-          ls -la
-          echo ""
-          echo "Checking Dockerfile location:"
-          ls -la docker/ 2>&1 || echo "docker/ directory not found"
-          ls -la Dockerfile 2>&1 || echo "Dockerfile not found in root"
-          echo ""
           IMAGE_TAG="${{ github.sha }}"
           FULL_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
+          LATEST_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest"
           
-          echo "Building image: ${FULL_IMAGE}"
-          echo "Using Dockerfile: docker/Dockerfile"
+          echo "Building: ${FULL_IMAGE}"
           echo ""
           
-          # Check if Dockerfile exists
-          if [ -f "docker/Dockerfile" ]; then
-            echo "✅ Dockerfile found"
-          else
-            echo "❌ Dockerfile NOT FOUND at docker/Dockerfile"
-            find . -name "Dockerfile" -type f 2>/dev/null
-            exit 1
-          fi
-          
-          # Build without buildx (simpler, more reliable)
+          # Build the image
           docker build -t ${FULL_IMAGE} -f docker/Dockerfile .
-          BUILD_EXIT=$?
           
-          if [ $BUILD_EXIT -eq 0 ]; then
-            echo "✅ Build complete"
-            echo "Image: ${FULL_IMAGE}"
-          else
-            echo "❌ Build failed with exit code: $BUILD_EXIT"
-            exit $BUILD_EXIT
-          fi
+          echo ""
+          echo "✅ Build complete: ${FULL_IMAGE}"
 
       - name: 🚀 Push to ECR
         if: github.ref == 'refs/heads/main'
@@ -129,17 +124,20 @@ jobs:
           echo "=== PUSHING TO ECR ==="
           IMAGE_TAG="${{ github.sha }}"
           FULL_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
+          LATEST_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest"
           
-          # Push SHA tag
+          echo "Pushing: ${FULL_IMAGE}"
           docker push ${FULL_IMAGE}
           
-          # Push latest tag
-          LATEST_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest"
+          echo "Tagging as latest: ${LATEST_IMAGE}"
           docker tag ${FULL_IMAGE} ${LATEST_IMAGE}
+          
+          echo "Pushing: ${LATEST_IMAGE}"
           docker push ${LATEST_IMAGE}
           
+          echo ""
           echo "✅ Push complete"
-          echo "Images:"
+          echo "Images pushed:"
           echo "  - ${FULL_IMAGE}"
           echo "  - ${LATEST_IMAGE}"
 
