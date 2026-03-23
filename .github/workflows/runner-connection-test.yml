@@ -1,0 +1,27 @@
+name: Runner Connection Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/runner-connection-test.yml'
+
+jobs:
+  basic-test:
+    name: Basic Runner Test
+    runs-on: self-hosted
+    
+    steps:
+      - name: Check if runner is working
+        run: |
+          echo "Runner is working!"
+          echo "Hostname: $(hostname)"
+          echo "Runner OS: ${{ runner.os }}"
+          
+      - name: Show environment
+        run: |
+          pwd
+          ls -la
+          echo "Home: $HOME"
+          echo "User: $(whoami)"
