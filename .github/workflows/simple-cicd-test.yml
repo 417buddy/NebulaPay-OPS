@@ -1,0 +1,88 @@
+name: Simple CI/CD Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/simple-cicd-test.yml'
+
+jobs:
+  simple-test:
+    name: Simple CI/CD Test
+    runs-on: self-hosted
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 📁 Show what we have
+        run: |
+          echo "=== WORKSPACE INFO ==="
+          echo "PWD: $PWD"
+          echo "User: $(whoami)"
+          echo "Home: $HOME"
+          echo ""
+          echo "=== ROOT DIRECTORY ==="
+          ls -la
+          echo ""
+          echo "=== APPS DIRECTORY ==="
+          ls -la apps/ 2>&1 || echo "apps/ not found"
+          echo ""
+          echo "=== PAYMENT API DIRECTORY ==="
+          ls -la apps/payment-api/ 2>&1 || echo "apps/payment-api/ not found"
+          echo ""
+          echo "=== PACKAGE.JSON CHECK ==="
+          if [ -f "apps/payment-api/package.json" ]; then
+            echo "✅ Found package.json"
+            cat apps/payment-api/package.json | head -20
+          else
+            echo "❌ package.json NOT FOUND"
+            find . -name "package.json" -type f 2>/dev/null | head -10
+          fi
+
+      - name: 🟢 Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 📦 Try to install (with multiple fallbacks)
+        run: |
+          echo "=== NPM INSTALL TEST ==="
+          cd apps/payment-api
+          echo "Current dir: $(pwd)"
+          echo "Files here:"
+          ls -la
+          echo ""
+          echo "Trying npm ci..."
+          npm ci 2>&1 && echo "✅ npm ci SUCCESS" || {
+            echo "❌ npm ci failed, trying npm install..."
+            npm install 2>&1 && echo "✅ npm install SUCCESS" || echo "❌ npm install also failed"
+          }
+
+      - name: ✨ Try lint
+        run: |
+          echo "=== LINT TEST ==="
+          cd apps/payment-api
+          npm run lint 2>&1 || echo "Lint completed (may have warnings)"
+
+      - name: 🧪 Try test
+        run: |
+          echo "=== TEST RUN ==="
+          cd apps/payment-api
+          npm test 2>&1 || echo "Tests completed (may have failures)"
+
+      - name: ✅ Summary
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "  PIPELINE EXECUTION COMPLETE          "
+          echo "=========================================="
+          echo ""
+          echo "Runner: $(hostname)"
+          echo "Node: $(node --version)"
+          echo "npm: $(npm --version)"
+          echo ""
+          echo "Check the logs above for specific errors."
+          echo "If you see this message, the runner is working!"
+          echo ""
