@@ -26,6 +26,20 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
 
+      - name: 📁 Debug: Show workspace
+        run: |
+          echo "=== WORKSPACE DEBUG ==="
+          echo "PWD: $PWD"
+          echo "User: $(whoami)"
+          echo "Files in root:"
+          ls -la
+          echo ""
+          echo "Files in apps/payment-api:"
+          ls -la apps/payment-api/ || echo "Directory not found"
+          echo ""
+          echo "Package files:"
+          ls -la apps/payment-api/package*.json || echo "No package files"
+
       - name: 🟢 Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -35,7 +49,7 @@ jobs:
       - name: 📦 Install dependencies
         working-directory: apps/payment-api
         run: |
-          echo "Installing dependencies..."
+          echo "=== INSTALLING DEPENDENCIES ==="
           if [ -f "package-lock.json" ]; then
             npm ci || npm install
           else
@@ -44,7 +58,7 @@ jobs:
 
       - name: ✨ Run linter
         working-directory: apps/payment-api
-        run: npm run lint || echo "::warning::Lint completed with warnings"
+        run: npm run lint || echo "::warning::Lint completed"
 
       - name: 🔒 Run security audit
         working-directory: apps/payment-api
