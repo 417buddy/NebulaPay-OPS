@@ -30,22 +30,6 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 🔧 Fix Docker permissions
-        run: |
-          echo "=== FIXING DOCKER PERMISSIONS ==="
-          # Add current user to docker group
-          sudo usermod -aG docker $USER
-          # Try to start docker if not running
-          sudo systemctl start docker || true
-          # Verify docker works
-          docker ps || echo "Docker check"
-
-      - name: 🔧 Setup Docker (alternative)
-        run: |
-          echo "Setting up Docker without buildx..."
-          docker --version
-          docker info
-
       # ===========================================
       # INSTALL & LINT
       # ===========================================
@@ -75,24 +59,6 @@ jobs:
       # ===========================================
       # BUILD & PUSH (main branch only)
       # ===========================================
-      - name: 🔐 Check Docker access
-        if: github.ref == 'refs/heads/main'
-        run: |
-          echo "=== CHECKING DOCKER ACCESS ==="
-          echo "Current user: $(whoami)"
-          echo "User groups: $(groups)"
-          echo ""
-          echo "Docker version:"
-          docker --version
-          echo ""
-          echo "Docker info (first 10 lines):"
-          docker info 2>&1 | head -10
-          echo ""
-          echo "Docker ps:"
-          docker ps
-          echo ""
-          echo "✅ Docker is accessible"
-
       - name: 🔐 Login to ECR
         if: github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
@@ -107,16 +73,11 @@ jobs:
           echo "=== BUILDING DOCKER IMAGE ==="
           IMAGE_TAG="${{ github.sha }}"
           FULL_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${IMAGE_TAG}"
-          LATEST_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest"
           
           echo "Building: ${FULL_IMAGE}"
-          echo ""
+          sudo docker build -t ${FULL_IMAGE} -f docker/Dockerfile .
           
-          # Build the image
-          docker build -t ${FULL_IMAGE} -f docker/Dockerfile .
-          
-          echo ""
-          echo "✅ Build complete: ${FULL_IMAGE}"
+          echo "✅ Build complete"
 
       - name: 🚀 Push to ECR
         if: github.ref == 'refs/heads/main'
@@ -127,19 +88,15 @@ jobs:
           LATEST_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest"
           
           echo "Pushing: ${FULL_IMAGE}"
-          docker push ${FULL_IMAGE}
+          sudo docker push ${FULL_IMAGE}
           
           echo "Tagging as latest: ${LATEST_IMAGE}"
-          docker tag ${FULL_IMAGE} ${LATEST_IMAGE}
+          sudo docker tag ${FULL_IMAGE} ${LATEST_IMAGE}
           
           echo "Pushing: ${LATEST_IMAGE}"
-          docker push ${LATEST_IMAGE}
+          sudo docker push ${LATEST_IMAGE}
           
-          echo ""
           echo "✅ Push complete"
-          echo "Images pushed:"
-          echo "  - ${FULL_IMAGE}"
-          echo "  - ${LATEST_IMAGE}"
 
       - name: ✅ Build complete
         if: github.ref == 'refs/heads/main'
